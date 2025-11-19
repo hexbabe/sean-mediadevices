@@ -33,13 +33,6 @@ func Initialize() {
 	}
 
 	for _, device := range devices {
-		drivers := manager.Query(func(d driver.Driver) bool {
-			return d.Info().Label == device.UID
-		})
-		if len(drivers) > 0 {
-			continue
-		}
-
 		cam := newCamera(device)
 		manager.Register(cam, driver.Info{
 			Label:      device.UID,
