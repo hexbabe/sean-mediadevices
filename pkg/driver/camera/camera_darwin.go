@@ -37,6 +37,48 @@ func Initialize() {
 	}
 }
 
+// StartObserver starts the background observer to monitor for device changes.
+func StartObserver() error {
+	manager := driver.GetManager()
+
+	avfoundation.SetOnDeviceChange(func(device avfoundation.Device, event avfoundation.DeviceEventType) {
+		switch event {
+		case avfoundation.DeviceEventConnected:
+			drivers := manager.Query(func(d driver.Driver) bool {
+				return d.Info().Label == device.UID
+			})
+			if len(drivers) > 0 {
+				return
+			}
+
+			cam := newCamera(device)
+			manager.Register(cam, driver.Info{
+				Label:      device.UID,
+				DeviceType: driver.Camera,
+				Name:       device.Name,
+			})
+
+		case avfoundation.DeviceEventDisconnected:
+			drivers := manager.Query(func(d driver.Driver) bool {
+				return d.Info().Label == device.UID
+			})
+			for _, d := range drivers {
+				manager.Delete(d.ID())
+			}
+		}
+	})
+
+	if err := avfoundation.StartObserver(); err != nil {
+		return err
+	}
+
+	return syncVideoRecorders(manager)
+}
+
+func StopObserver() error {
+	return avfoundation.StopObserver()
+}
+
 func newCamera(device avfoundation.Device) *camera {
 	return &camera{
 		device: device,
@@ -79,4 +121,47 @@ func (cam *camera) VideoRecord(property prop.Media) (video.Reader, error) {
 
 func (cam *camera) Properties() []prop.Media {
 	return cam.session.Properties()
+}
+
+// syncVideoRecorders keeps the manager in lockstep with the hardware before the first user query.
+func syncVideoRecorders(manager *driver.Manager) error {
+	devices, err := avfoundation.Devices(avfoundation.Video)
+	if err != nil {
+		return err
+	}
+
+	current := make(map[string]struct{}, len(devices))
+	for _, device := range devices {
+		current[device.UID] = struct{}{}
+	}
+
+	registered := manager.Query(driver.FilterVideoRecorder())
+	registeredByLabel := make(map[string]struct{}, len(registered))
+
+	// drop any registered drivers whose UID isn't currently present
+	for _, d := range registered {
+		label := d.Info().Label
+		registeredByLabel[label] = struct{}{}
+		if _, ok := current[label]; !ok {
+			manager.Delete(d.ID())
+			delete(registeredByLabel, label)
+		}
+	}
+
+	// register any new devices that appeared between the init() call and the observer start
+	for _, device := range devices {
+		if _, ok := registeredByLabel[device.UID]; ok {
+			continue
+		}
+
+		cam := newCamera(device)
+		manager.Register(cam, driver.Info{
+			Label:      device.UID,
+			DeviceType: driver.Camera,
+			Name:       device.Name,
+		})
+		registeredByLabel[device.UID] = struct{}{}
+	}
+
+	return nil
 }
