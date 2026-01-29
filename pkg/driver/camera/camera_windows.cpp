@@ -108,9 +108,9 @@ int freeCameraList(cameraList* list, const char** errstr)
   {
     for (int i = 0; i < list->num; ++i)
     {
-      delete list->name[i];
+      free(list->name[i]);  // Was allocated with malloc in getCameraName()
     }
-    delete list->name;
+    delete[] list->name;  // Was allocated with new[] in listCamera()
   }
   return 1;
 }
@@ -469,7 +469,7 @@ void freeCamera(camera* cam)
 
   if (cam->props)
   {
-    delete cam->props;
+    delete[] cam->props;  // Was allocated with new[] in listResolution()
     cam->props = nullptr;
   }
 }
