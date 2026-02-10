@@ -270,7 +270,8 @@ int listResolution(camera* cam, const char** errstr)
 
       cam->props[iProp].width = bmi->biWidth;
       cam->props[iProp].height = bmi->biHeight;
-      cam->props[iProp].fcc = bmi->biCompression;
+      // Use subtype.Data1 for the FourCC; some drivers leave biCompression as 0.
+      cam->props[iProp].fcc = mediaType->subtype.Data1;
       iProp++;
     }
     cam->numProps = iProp;
@@ -372,7 +373,7 @@ int openCamera(camera* cam, const char** errstr)
             if (bmi != nullptr &&
                 bmi->biWidth == cam->width &&
                 bmi->biHeight == cam->height &&
-                bmi->biCompression == cam->fcc)
+                mt->subtype.Data1 == cam->fcc)
             {
               streamConfig->SetFormat(mt);
               freeMediaType(mt);
