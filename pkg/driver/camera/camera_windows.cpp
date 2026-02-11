@@ -253,7 +253,6 @@ int listResolution(camera* cam, const char** errstr)
   ICaptureGraphBuilder2* captureGraph = nullptr;
   IAMStreamConfig* config = nullptr;
   IPin* src = nullptr;
-  LPOLESTR name;
 
   if (!selectCamera(cam, &moniker, errstr))
   {
@@ -298,7 +297,10 @@ int listResolution(camera* cam, const char** errstr)
 
       if (mediaType->majortype != MEDIATYPE_Video ||
           mediaType->pbFormat == nullptr)
+      {
+        freeMediaType(mediaType);
         continue;
+      }
 
       BITMAPINFOHEADER* bmi = nullptr;
       if (mediaType->formattype == FORMAT_VideoInfo)
@@ -311,6 +313,7 @@ int listResolution(camera* cam, const char** errstr)
       }
       else
       {
+        freeMediaType(mediaType);
         continue;
       }
 
@@ -319,6 +322,7 @@ int listResolution(camera* cam, const char** errstr)
       // Use subtype.Data1 for the FourCC; some drivers leave biCompression as 0.
       cam->props[iProp].fcc = mediaType->subtype.Data1;
       iProp++;
+      freeMediaType(mediaType);
     }
     cam->numProps = iProp;
   }
@@ -618,7 +622,7 @@ void freeCamera(camera* cam)
 
   if (cam->props)
   {
-    delete cam->props;
+    delete[] cam->props;
     cam->props = nullptr;
   }
 }
